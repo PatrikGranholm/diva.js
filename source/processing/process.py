@@ -46,7 +46,7 @@ option/kdu_compress_location parameter.
 You can download this library for free at:
 http://www.kakadusoftware.com/index.php?option=com_content&task=view&id=26&Itemid=22
 
-To convert files to Pyramid TIFF, specify the "-t tiff" option when running this
+To convert files to Pyramid TIFF, specify the "-t tif" option when running this
 script or set the image_type parameter to "tiff" when creating a DivaConverter 
 object. This requires the "vipsCC" Python module included with an installation 
 of the VIPS image processing suite. If you are installing VIPS using Homebrew 
@@ -79,7 +79,7 @@ class DivaConverter(object):
         self.data_output_directory = os.path.abspath(data_output_directory)
         self.verbose = True
         self.image_type = kwargs['image_type']
-        self.compression = "none"
+        self.compression = "jpeg:80"
         self.convert_location = kwargs['convert_location']
         self.kdu_compress_location = kwargs['kdu_compress_location']
 
@@ -88,22 +88,22 @@ class DivaConverter(object):
             print("If this path is incorrect, please specify an alternate location using the '-i (location)' command line option for this script.")
             sys.exit(-1)
 
-        if self.image_type == "tiff":
+        if self.image_type == "tif":
             try:
                 from vipsCC import VImage
             except ImportError as e:
                 print("You have specified TIFF as the output format, but do not have the VIPS Python library installed.")
                 sys.exit(-1)
 
-        elif self.image_type == "jpeg":
+        elif self.image_type == "jp2":
             if not os.path.exists(self.kdu_compress_location):
                 print(("You have specified JP2 as the output format, but do not have the kdu_compress executable installed at {0}.").format(self.kdu_compress_location))
                 print("If this path is incorrect, please specify an alternate location using the '-k (location)' command line option for this script.")
                 sys.exit(-1)
 
         else:
-            print("The '-t' option must either be 'tiff' for Pyramid TIFF or 'jpeg' for JPEG2000. Omitting the '-t' option will default to 'jpeg'.")
-            print("Usage: process.py -t tiff input_directory output_directory data_output_directory")
+            print("The '-t' option must either be 'tif' for Pyramid TIFF or 'jp2' for JPEG2000. Omitting the '-t' option will default to 'jp2'.")
+            print("Usage: process.py -t tif input_directory output_directory data_output_directory")
             sys.exit(-1)
 
     def convert(self):
@@ -121,7 +121,7 @@ class DivaConverter(object):
             name, ext = os.path.splitext(name)
             tdir = tempfile.mkdtemp()
 
-            input_file = os.path.join(tdir, "{0}.tiff".format(name))
+            input_file = os.path.join(tdir, "{0}.tif".format(name))
             output_file = os.path.join(self.output_directory, "{0}.{1}".format(name, self.image_type))
 
             if self.verbose:
@@ -134,7 +134,7 @@ class DivaConverter(object):
             if self.verbose:
                 print("Converting {0} to {1}".format(name, self.image_type))
 
-            if self.image_type == "tiff":
+            if self.image_type == "tif":
                 self.__process_tiff(input_file, output_file)
             else:
                 self.__process_jpeg2000(input_file, output_file)
@@ -159,20 +159,20 @@ class DivaConverter(object):
         subprocess.call([self.kdu_compress_location,
                         "-i", input_file,
                          "-o", output_file,
-                         "Clevels=5",
+                         "Clayers=1",
+			 "Clevels=5",
+			 "Creversible=no",
+			 "Cmodes={BYPASS}",
                          "Cblk={64,64}",
-                         "Cprecincts={256,256},{256,256},{128,128}",
-                         "Creversible=yes",
-                         "Cuse_sop=yes",
-                         "Corder=LRCP",
-                         "ORGgen_plt=yes",
-                         "ORGtparts=R",
-                         "-rate", "-,1,0.5,0.25"])
+                         "Cprecincts={256,256}",
+                         "Corder=RPCL",                         
+                         "-rate", "1.5",
+			 "-quiet"])
 
     def __process_tiff(self, input_file, output_file):
         from vipsCC import VImage
         vimage = VImage.VImage(input_file)
-        vimage.vips2tiff('{0}:{1},tile:256x256,pyramid'.format(output_file, self.compression))
+        vimage.vips2tiff('{0}:{1},tile:256x256,pyramid,,res_inch'.format(output_file, self.compression))
         del vimage
 
     def __filter_fnames(self, fname):
@@ -204,7 +204,7 @@ class DivaConverter(object):
 if __name__ == "__main__":
     usage = "%prog [options] input_directory output_directory data_output_directory"
     parser = OptionParser(usage)
-    parser.add_option("-t", "--type", action="store", default="jpeg", help="The type of images this script should produce. Options are 'jpeg' or 'tiff'.", dest="type")
+    parser.add_option("-t", "--type", action="store", default="jp2", help="The type of images this script should produce. Options are 'jp2' or 'tif'.", dest="type")
     parser.add_option("-k", "--kdu-compress-location", action="store", default="/usr/local/bin/kdu_compress", help="The location of the 'kdu_compress' executable provided by the Kakadu JPEG2000 library.", dest="kdu_compress_location")
     parser.add_option("-i", "--imagemagick-convert-location", action="store", default="/usr/local/bin/convert", help="The location of the 'convert' executable provided by ImageMagick.", dest="convert_location")
     options, args = parser.parse_args()
